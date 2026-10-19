@@ -1,1 +1,32 @@
-
+name: Daily EPG
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 19 * * *' # 02:30 Asia/Ho_Chi_Minh, next calendar day
+permissions:
+  contents: write
+concurrency:
+  group: daily-epg
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and validate XMLTV
+        env:
+          EPG_SOURCE_URL: ${{ secrets.EPG_SOURCE_URL }}
+        run: python sync_epg.py
+      - name: Publish latest asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view epg-latest >/dev/null 2>&1; then
+            gh release upload epg-latest epg.xml.gz --clobber
+          else
+            gh release create epg-latest epg.xml.gz --title 'EZSport EPG latest' --notes 'Daily generated EPG; updated automatically.' --latest=false
+          fi
